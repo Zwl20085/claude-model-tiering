@@ -13,9 +13,13 @@ software work. Swap the model names if your account has different tiers; the sha
 | Tier | Model | Role |
 |---|---|---|
 | **Lead** | Fable (session model) | Strategy, decomposition, briefs, critical review, final answer. Never bulk reading. |
-| **Engineer** | Opus | Owns the code. Critical edits by its own hands. Reviews and lands everything the lower tiers draft. Asks the Lead for strategy, never guesses it. |
-| **Drafter** | Sonnet | First drafts that need understanding: code, tests, analysis scripts, multi-source investigations with synthesis, preliminary reports for Opus. |
+| **Engineer** | Opus | Owns the code and writes most of it: default author for any edit, sole author for critical ones. Reviews and lands the minority the lower tiers draft. Asks the Lead for strategy, never guesses it. |
+| **Drafter** | Sonnet | Non-core thinking work: multi-source investigations with synthesis, preliminary reports and memos; peripheral scripts and extra test cases only from a complete spec. |
 | **Runner** | Haiku | Single-answer work: file exploration, raw data reading, single-page fetches, mechanical edits from a complete spec, trivial test scaffolds. |
+
+Reference split of delegated effort: **Opus ~60%, Sonnet ~20%, Haiku ~20%**. If it is code someone will
+run, cite or build on, Opus writes it. The saving comes from Haiku doing the reading and Sonnet doing
+the non-code thinking, not from cheaper authorship.
 
 Chain of custody:
 
@@ -31,6 +35,9 @@ Three rules do most of the work:
 1. **Every subagent spawn sets `model` explicitly.** Unset inherits the lead, so Runner work silently burns Lead tokens.
 2. **Nothing a cheap tier wrote lands without an Opus review report**: read it, run it, one paragraph on why it is right.
 3. **Critical edits are Opus's own hands, then a Lead read.** Critical = numerics, data formats, security, public API, build/CI, git, anything to be cited.
+
+The Opus/Sonnet line: *will someone run, cite or build on this code?* Then Opus. Sonnet gets code only
+when it is peripheral and the spec leaves no design decisions.
 
 The Sonnet/Haiku line: *could two careful people disagree about the output, or must intent be inferred?*
 Then Sonnet. Otherwise Haiku. Unsure: a cheap Haiku probe first, re-brief to Sonnet on ambiguity.

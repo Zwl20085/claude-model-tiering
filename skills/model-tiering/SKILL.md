@@ -12,9 +12,14 @@ every tier knows exactly what it owes the tier above.
 | Tier | Model (`Agent.model`) | Role in one line |
 |---|---|---|
 | **Lead** | `fable` (the session model) | Strategy, decomposition, critical review, final go/no-go. Edits nothing that a lower tier can safely edit. |
-| **Engineer** | `opus` | Owns the code. Makes *critical* edits personally; reviews and lands everything Sonnet/Haiku drafted. Asks Fable for strategy, never guesses it. |
-| **Drafter** | `sonnet` | First drafts that need understanding: code, tests, analysis scripts, multi-source investigations, preliminary reports. |
+| **Engineer** | `opus` | Owns the code and **writes most of it** (default author for any edit). Reviews and lands the minority that Sonnet/Haiku drafted. Asks Fable for strategy, never guesses it. |
+| **Drafter** | `sonnet` | Peripheral drafts and non-code thinking work: low-risk tests and scripts, multi-source investigations with synthesis, preliminary reports and memos. |
 | **Runner** | `haiku` | Reading, finding, fetching, tabulating, mechanical edits from a complete spec. No judgement calls. |
+
+Rough split of delegated effort: **Opus ~60%, Sonnet ~20%, Haiku ~20%.** The point is not the
+numbers but the default: when a piece of work is code, Opus writes it unless there is a specific
+reason to hand it down. Sonnet and Haiku are for work that is clearly peripheral, clearly
+mechanical, or clearly not code.
 
 If the session is already running on Opus (no Fable available), Opus takes both the Lead and
 Engineer rows and the rest of the pattern is unchanged.
@@ -32,24 +37,30 @@ Engineer rows and the rest of the pattern is unchanged.
   work a Runner does equally well.
 
 ### Opus (Engineer)
-- **Critical edits: Opus writes them itself.** Critical means any of: numerical kernels and
+- **Default author of code.** Any edit to production code, core tests, numerics, data handling,
+  or anything that will be run, cited or depended upon is written by Opus directly. A first draft
+  by Opus plus Opus's own verification is the normal path; handing down is the exception.
+- **Critical edits: Opus only, no exceptions.** Critical means any of: numerical kernels and
   physics/algorithm correctness, data integrity and file formats others depend on, security or
   auth, public API and signatures, build/packaging/CI config, git operations, anything that will
-  be cited in a paper or report, anything the brief marks `critical`.
-- **Non-critical edits: Sonnet or Haiku draft, Opus reviews and lands.** Review means Opus has
-  read the diff, run the tests, and can state in one paragraph why it is correct. "Looks fine" is
+  be cited in a paper or report, anything the brief marks `critical`. These also get a Fable read.
+- **Hands down only when the work is clearly peripheral or mechanical**: a smoke test with
+  given expected values, a formatter pass, a rename, a plotting script over already-extracted
+  data, boilerplate from a template. Opus still reviews and lands it. Review means Opus has read
+  the diff, run the tests, and can state in one paragraph why it is correct. "Looks fine" is
   not a review.
 - Asks Fable (via its report, or SendMessage if running concurrently) for strategy when a design
   decision appears mid-task. It does not improvise architecture.
 - Owns test green-ness and the verification evidence that goes back up.
 
-### Sonnet (Drafter) — tasks that need understanding but not final authority
-- Code drafts of moderate complexity (a function, a module, a refactor with a clear target).
-  If the draft turns out to touch something on the critical list, Sonnet stops and reports;
-  Opus takes it over.
-- Test drafts that require understanding behaviour: property tests, regression tests from a bug
-  report, integration test scaffolds.
-- Analysis and plotting scripts over data a Runner has already extracted.
+### Sonnet (Drafter) — thinking work that is not core code
+Sonnet is **not** the default code author. It drafts code only when the piece is peripheral,
+low-risk, and fully specified by Opus or Fable; anything else is Opus's own job.
+- Peripheral code drafts: a plotting or data-munging script, a CLI wrapper, a fixture generator,
+  an example notebook. If the draft turns out to touch something on the critical list, or the
+  spec runs out, Sonnet stops and reports; Opus takes it over.
+- Low-risk test drafts from a precise spec: regression tests reproducing a given bug report,
+  additional cases for an existing parametrised suite. Core test design stays with Opus.
 - Multi-source internet investigation **with synthesis**: compare, reconcile, cite, flag
   disagreement between sources.
 - Preliminary reports for Opus: literature surveys, "state of this module" write-ups, option
@@ -64,6 +75,11 @@ Engineer rows and the rest of the pattern is unchanged.
   update a version string everywhere, generate boilerplate from a template.
 - Trivial test scaffolding: parametrised smoke tests whose expected values are given in the brief.
 - Existence and status checks: does the build pass, which tests fail, what does `gh pr status` say.
+
+### The Opus / Sonnet dividing line
+Ask: *is this code someone will run, cite, or build on?* If yes, Opus writes it. Sonnet gets code
+only when it is peripheral (scripts, examples, fixtures, extra test cases) **and** the spec leaves
+no design decisions. Sonnet's main value is non-code thinking: investigations, syntheses, memos.
 
 ### The Sonnet / Haiku dividing line
 Ask: *could two careful people disagree about the output?* If no, Haiku. If yes, Sonnet.
@@ -122,10 +138,11 @@ Decompose further before spawning.
 
 | Request | Decomposition |
 |---|---|
-| "Add a loss model to the FE package" | Fable: define interface and acceptance tests. Opus: write the kernel (critical). Sonnet: draft unit tests and a validation script against the reference paper. Haiku: find every caller of the old loss function and extract reference numbers from the paper's tables. Opus: review Sonnet's tests, land. Fable: read the kernel diff. |
-| "Why did the suite get slow?" | Haiku: run the suite with timing, tabulate top 20. Sonnet: profile the top 3, write up hypotheses. Opus: confirm the cause, fix it (critical if it touches the solver). Fable: decide whether the fix is worth the behaviour change. |
+| "Add a loss model to the FE package" | Fable: define interface and acceptance tests. Opus: write the kernel, its unit tests and the integration (critical). Sonnet: draft the validation/plotting script against the reference paper from Opus's spec. Haiku: find every caller of the old loss function and extract reference numbers from the paper's tables. Opus: review Sonnet's script, land. Fable: read the kernel diff. |
+| "Why did the suite get slow?" | Haiku: run the suite with timing, tabulate top 20. Opus: profile the top 3, confirm the cause, fix it. Sonnet: only if a write-up of hypotheses for the user is wanted. Fable: decide whether the fix is worth the behaviour change. |
 | "Survey the literature on X" | Haiku ×N: one fetch per paper, facts only, in a fixed table. Sonnet: synthesise, reconcile conflicts, draft the survey. Fable: critical read, decide what the survey is for, rewrite the framing. Opus not needed. |
 | "Rename `foo` to `bar` across the repo" | Haiku: do it, run tests, report. Opus: review the diff, land. No Sonnet, no Fable beyond the brief. |
+| "Fix this bug in the mesher" | Opus: reproduce, fix, add the regression test, verify. Haiku: locate callers if needed. No Sonnet. Fable: read the diff if the mesher is on the critical list (it is). |
 | "Should we move to a monorepo?" | Haiku: inventory repos, sizes, cross-deps. Sonnet: options memo with trade-offs. Fable: decision. No code, so no Opus. |
 
 ## 6. What "done" means at each tier
@@ -144,6 +161,8 @@ Decompose further before spawning.
 - Fable reading forty files to answer a locating question. Spawn Haiku.
 - Opus "reviewing" by skimming and saying it looks fine. Run it, read the diff, write the paragraph.
 - Sonnet drafting a numerical kernel because nobody said it was critical. The brief must say.
+- Handing ordinary code to Sonnet "to save Opus tokens". Opus writes code; the saving is in
+  Haiku doing the reading and Sonnet doing the non-code thinking, not in cheaper authorship.
 - Haiku being asked to "investigate and recommend". Haiku reports; Sonnet recommends; Fable decides.
 - Spawning without `model`. The default inherits the parent model and silently spends Fable tokens on Runner work.
 - Handing a reviewer the lead's hypothesis. Give the code, ask for an independent read.
