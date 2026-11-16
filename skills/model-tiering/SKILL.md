@@ -65,8 +65,9 @@ Ask these in order and stop at the first yes.
 1. **Is it a critical edit?** Engineer writes it, you read the diff. Critical means: numerical
    kernels and algorithm or physics correctness, data integrity and file formats others depend
    on, security or auth, public API and signatures, build, packaging and CI config, git
-   operations that change state, anything that will be cited in a paper or report, and anything you mark critical
-   in the brief.
+   operations that change state, code or data behind a result that will be cited, and anything
+   you mark critical in the brief. Prose that will be cited, such as a survey, is not an edit
+   in this sense: a Drafter may draft it, and the gate is re-opening its sources (section 6).
 2. **Is it code someone will run, cite or build on?** Engineer writes it and verifies it.
 3. **Is it peripheral code or documentation with a complete spec, where reviewing the result is
    clearly cheaper than writing it?** Drafter writes it (Runner if it is purely mechanical),

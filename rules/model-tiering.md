@@ -16,7 +16,7 @@ If the session runs on Opus, the session is both Lead and Engineer, and a critic
 Non-negotiable:
 - Every `Agent` spawn names its tier: a `tier-*` agent type (model pinned in its definition), or an explicit `model` on any other agent type. Unset means the Lead's model does Runner work.
 - Nothing Sonnet or Haiku wrote lands without an Opus review report (read, run, one paragraph on why it is right).
-- Critical edits (numerics, data formats, security, public API, build/packaging/CI, git operations that change state, anything to be cited, anything a brief marks critical) are Opus's own hands, then a Lead read.
+- Critical edits (numerics, data formats, security, public API, build/packaging/CI, git operations that change state, code or data behind a result that will be cited, anything a brief marks critical) are Opus's own hands, then a Lead read.
 - Facts from Sonnet or Haiku that will be cited or decided on come with a source, and the tier that uses them re-opens that source.
 - Cheap tiers report facts and flag uncertainty. They do not decide. Sonnet recommends. The Lead decides.
 - Sonnet vs Haiku: could two careful people disagree about the output, or must intent be inferred? Then Sonnet. Otherwise Haiku. Unsure: Haiku probe first, re-brief to Sonnet on ambiguity.
