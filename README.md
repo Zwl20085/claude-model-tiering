@@ -1,83 +1,87 @@
 # claude-model-tiering
 
-A standing four-tier delegation pattern for [Claude Code](https://claude.com/claude-code):
-the expensive model thinks, the mid model owns the code, the cheap models read, fetch and draft.
-Shipped as a **skill** (the full method) plus an **always-on rule** (the one-screen version),
-so every session on the machine follows it without being asked.
+A four-tier delegation pattern for [Claude Code](https://claude.com/claude-code). The session
+model leads, Opus writes and owns the code, Sonnet does non-code thinking and peripheral drafts,
+Haiku does reading, finding and mechanical edits. It ships as an always-on rule, a skill with the
+method, and three subagent definitions with the model pinned for each worker tier.
 
-Used daily since mid-2026 on research code (FE solvers, PCB design, paper pipelines) and ordinary
-software work. Swap the model names if your account has different tiers; the shape is what matters.
+| Tier | Spawned as | Model | Does |
+|---|---|---|---|
+| Lead | (the session) | Fable | Strategy, decomposition, briefs, critical review, final message |
+| Engineer | `tier-engineer` | Opus | Writes the code, all critical edits, reviews and lands lower-tier drafts |
+| Drafter | `tier-drafter` | Sonnet | Investigations, memos, reports; peripheral code from a complete spec |
+| Runner | `tier-runner` | Haiku | Locating, reading, tabulating, fetching; mechanical edits from a complete spec |
 
-## The pattern
+The rule (`rules/model-tiering.md`) is the one place that holds the full tier table and the hard
+rules. The skill (`skills/model-tiering/`) is the procedure for applying them and the brief
+templates.
 
-| Tier | Model | Role |
+## What gets installed
+
+Into the Claude config directory, which is `$CLAUDE_CONFIG_DIR` if set, otherwise `~/.claude`:
+
+| From | To | Effect |
 |---|---|---|
-| **Lead** | Fable (session model) | Strategy, decomposition, briefs, critical review, final answer. Never bulk reading. |
-| **Engineer** | Opus | Owns the code and writes most of it: default author for any edit, sole author for critical ones. Reviews and lands the minority the lower tiers draft. Asks the Lead for strategy, never guesses it. |
-| **Drafter** | Sonnet | Non-core thinking work: multi-source investigations with synthesis, preliminary reports and memos; peripheral scripts and extra test cases only from a complete spec. |
-| **Runner** | Haiku | Single-answer work: file exploration, raw data reading, single-page fetches, mechanical edits from a complete spec, trivial test scaffolds. |
+| `rules/model-tiering.md` | `rules/common/model-tiering.md` | Loaded into every session |
+| `skills/model-tiering/` | `skills/model-tiering/` | The skill, `/model-tiering` or loaded by Claude when relevant |
+| `agents/tier-*.md` | `agents/` | Subagent types `tier-engineer`, `tier-drafter`, `tier-runner`; the last two cannot spawn agents |
 
-Reference split of delegated effort: **Opus ~60%, Sonnet ~20%, Haiku ~20%**. If it is code someone will
-run, cite or build on, Opus writes it. The saving comes from Haiku doing the reading and Sonnet doing
-the non-code thinking, not from cheaper authorship.
+The installer replaces `skills/model-tiering/` as a whole, so files from an older version do not
+linger. It does not touch other skills, other agents or anything else in the config directory.
 
-Chain of custody:
-
-```
-Haiku result  -> Sonnet (only if ambiguity flagged) -> Opus review -> lands
-Sonnet draft  -> Opus review (always)               -> lands
-Opus edit     -> Lead review if critical, else self-verified and reported
-Lead decision -> user
-```
-
-Three rules do most of the work:
-
-1. **Every subagent spawn sets `model` explicitly.** Unset inherits the lead, so Runner work silently burns Lead tokens.
-2. **Nothing a cheap tier wrote lands without an Opus review report**: read it, run it, one paragraph on why it is right.
-3. **Critical edits are Opus's own hands, then a Lead read.** Critical = numerics, data formats, security, public API, build/CI, git, anything to be cited.
-
-The Opus/Sonnet line: *will someone run, cite or build on this code?* Then Opus. Sonnet gets code only
-when it is peripheral and the spec leaves no design decisions.
-
-The Sonnet/Haiku line: *could two careful people disagree about the output, or must intent be inferred?*
-Then Sonnet. Otherwise Haiku. Unsure: a cheap Haiku probe first, re-brief to Sonnet on ambiguity.
-
-## Install
+## Install and uninstall
 
 ```powershell
-# Windows
+# Windows PowerShell
 git clone https://github.com/Zwl20085/claude-model-tiering
 .\claude-model-tiering\install.ps1
+.\claude-model-tiering\install.ps1 -Uninstall
 ```
 
 ```sh
-# macOS / Linux
+# macOS, Linux, Git Bash
 git clone https://github.com/Zwl20085/claude-model-tiering
-./claude-model-tiering/install.sh
+sh claude-model-tiering/install.sh
+sh claude-model-tiering/install.sh --uninstall
 ```
 
-This copies:
+Both scripts print each path they install or remove, and are safe to re-run. Uninstall removes
+only the items listed above. Start a new Claude Code session after either.
 
-- `skills/model-tiering/` to `~/.claude/skills/model-tiering/` (invoke with `/model-tiering`, or Claude loads it itself at the start of non-trivial tasks)
-- `rules/model-tiering.md` to `~/.claude/rules/common/model-tiering.md` (loaded into every session automatically)
+If PowerShell refuses to run the script, use
+`powershell -ExecutionPolicy Bypass -File .\claude-model-tiering\install.ps1`.
 
-Project-only install: copy the same two things into `<repo>/.claude/skills/` and `<repo>/.claude/rules/` instead.
+Project-only install: copy the same three things into the repository's own `.claude/` directory
+(`.claude/rules/`, `.claude/skills/model-tiering/`, `.claude/agents/`) instead of running the
+installer. A project-level agent definition overrides a user-level one with the same name, which
+is also how to give one project different models.
 
-## Files
+## Using other models
 
-```
-skills/model-tiering/SKILL.md          full method: roles, escalation, briefing, mechanism choice, worked examples, anti-patterns
-skills/model-tiering/brief-template.md the brief every worker gets, and the return format each tier owes
-rules/model-tiering.md                 one-screen always-on version
-install.ps1 / install.sh               copy into ~/.claude
-```
+The worker models are set in two places that should agree:
+
+- the `model:` line in the frontmatter of each `agents/tier-*.md`, which is what Claude Code uses
+  when it spawns that agent;
+- the tier table in `rules/model-tiering.md`, which is what the Lead reads.
+
+The Lead is whatever model the session runs. If the session runs on Opus, the rule tells it to act
+as Lead and Engineer at once. The skill's prose refers to Opus, Sonnet and Haiku by name; if you
+swap models, those names become labels for the tiers rather than the literal models.
+
+Without the agent files installed, the pattern still works through ordinary agent types with
+`model` set on each spawn. The skill describes that fallback.
 
 ## Why this shape
 
-- The lead's context is the scarce resource. Reading forty files to locate one function is Runner work.
-- Review is cheaper than rework, but only if it is real: run it, diff it, say why it is right.
-- Cheap models are excellent at tasks with one right answer and poor at tasks that need intent inferred. The Sonnet/Haiku split follows that line rather than "size of task".
-- A brief the lead cannot write clearly is a task the lead does not understand yet. Decompose first.
+- The Lead's context is the scarce resource. Reading forty files to find one function is work a
+  cheaper model does as well.
+- Code is not done as well by a cheaper model, so Opus writes it rather than reviewing someone
+  else's attempt. The saving comes from Haiku reading and Sonnet doing non-code thinking.
+- Pinning each worker's model in an agent definition means a spawn cannot silently inherit the
+  Lead's model, and the worker's contract and return format travel with it instead of being
+  pasted into every brief.
+- Review only helps when the author and the reader are different and the review is real: run it,
+  read the diff, say why it is right.
 
 ## License
 

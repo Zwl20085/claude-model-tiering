@@ -1,168 +1,191 @@
 ---
 name: model-tiering
-description: The standing four-tier work pattern for Claude Code on this machine — Fable leads (strategy, critical review, final judgement), Opus edits code (critical edits itself, otherwise reviews and lands Sonnet/Haiku drafts), Sonnet drafts code, tests and synthesised reports, Haiku does raw reading, file exploration, single-page fetches and mechanical bulk work. Use at the start of ANY non-trivial task to decide who does what, how to brief them, and what must come back before work counts as done. Also use when asked "which model should do this", when a subagent is about to be spawned without a `model` set, or when a cheap model's output is about to be trusted without review.
+description: How to split a task across four model tiers in Claude Code - the session model leads, Opus writes and owns the code, Sonnet does non-code thinking and peripheral drafts, Haiku does reading, finding, fetching and mechanical edits. Covers when to delegate at all, which tier gets each piece, how to brief it, what must come back before work counts as done, and what to do when a return is wrong. Load before the first subagent spawn of any task, when asked which model should do something, or when a cheap model's output is about to be trusted without review.
 ---
 
-# Model tiering: the standing delegation pattern
+# Model tiering: the method
 
-Four tiers, one chain of custody. Work flows **down** as briefs and **up** as verified results.
-The lead never reads bulk material itself, the cheap tiers never land code unreviewed, and
-every tier knows exactly what it owes the tier above.
+The always-on Model Tiering rule holds the tier table and the hard rules, and it is normally
+already in your context. This skill is how to apply them. You are reading it as the Lead: you
+plan the split, write the briefs, check what comes back, and write the final message.
 
-| Tier | Model (`Agent.model`) | Role in one line |
+The pattern exists because the Lead's context is the scarce resource and its tokens are the
+expensive ones. Reading and searching are done as well by a cheaper model. Code is not, which is
+why Opus writes it instead of reviewing someone else's attempt. The saving comes from Haiku
+doing the reading and Sonnet doing the non-code thinking, not from cheaper authorship.
+
+## 1. How tiers are spawned
+
+| Tier | `subagent_type` | Can spawn |
 |---|---|---|
-| **Lead** | `fable` (the session model) | Strategy, decomposition, critical review, final go/no-go. Edits nothing that a lower tier can safely edit. |
-| **Engineer** | `opus` | Owns the code and **writes most of it** (default author for any edit). Reviews and lands the minority that Sonnet/Haiku drafted. Asks Fable for strategy, never guesses it. |
-| **Drafter** | `sonnet` | Peripheral drafts and non-code thinking work: low-risk tests and scripts, multi-source investigations with synthesis, preliminary reports and memos. |
-| **Runner** | `haiku` | Reading, finding, fetching, tabulating, mechanical edits from a complete spec. No judgement calls. |
+| Engineer | `tier-engineer` | `tier-drafter`, `tier-runner` |
+| Drafter | `tier-drafter` | nothing |
+| Runner | `tier-runner` | nothing |
 
-Rough split of delegated effort: **Opus ~60%, Sonnet ~20%, Haiku ~20%.** The point is not the
-numbers but the default: when a piece of work is code, Opus writes it unless there is a specific
-reason to hand it down. Sonnet and Haiku are for work that is clearly peripheral, clearly
-mechanical, or clearly not code.
+Each definition pins its model and carries the tier's contract and return format, so a brief
+does not need to repeat them. Do not pass `model` on a `tier-*` spawn: the call's `model`
+overrides the definition, and the only reason to do that is a deliberate one-off.
 
-If the session is already running on Opus (no Fable available), Opus takes both the Lead and
-Engineer rows and the rest of the pattern is unchanged.
+Any other agent type (`Explore`, `claude-code-guide`, `general-purpose`, a project's own agents)
+has no tier built in. Set `model` on the call, and put the return format in the brief.
 
-## 1. What each tier does
+**The Lead is the hub.** You spawn the workers, their reports come back to you, and you pass
+work between tiers. The one exception is the Engineer, which may spawn a Runner to locate or
+read something, or a Drafter for a peripheral draft, inside its own task. It then reviews what
+comes back and reports that it did so. Drafter and Runner never spawn.
 
-### Fable (Lead)
-- Restates the goal, decides the decomposition, picks the tier for every piece.
-- Writes the briefs (see §3) and the acceptance criteria *before* anything is spawned.
-- Reviews Opus's critical edits line by line. Reviews Opus's review reports of Sonnet/Haiku work by
-  sampling the riskiest items, not by re-reading everything.
-- Gives strategy advice when Opus asks: architecture, trade-offs, what to cut, what "done" means.
-- Writes the final user-facing message. Owns the recap, the risks, and anything the user will cite.
-- Does **not** read raw data, sweep directories, or fetch pages itself. That is context spent on
-  work a Runner does equally well.
+If the session runs on Opus, you are Lead and Engineer at once: write the code yourself, spawn
+only Drafter and Runner, and the two-reader rule for critical edits becomes "verify, then show
+the user the diff". If the `tier-*` agents are not installed, use `general-purpose` with
+`model` set and paste the return block from `brief-template.md` into the brief.
 
-### Opus (Engineer)
-- **Default author of code.** Any edit to production code, core tests, numerics, data handling,
-  or anything that will be run, cited or depended upon is written by Opus directly. A first draft
-  by Opus plus Opus's own verification is the normal path; handing down is the exception.
-- **Critical edits: Opus only, no exceptions.** Critical means any of: numerical kernels and
-  physics/algorithm correctness, data integrity and file formats others depend on, security or
-  auth, public API and signatures, build/packaging/CI config, git operations, anything that will
-  be cited in a paper or report, anything the brief marks `critical`. These also get a Fable read.
-- **Hands down only when the work is clearly peripheral or mechanical**: a smoke test with
-  given expected values, a formatter pass, a rename, a plotting script over already-extracted
-  data, boilerplate from a template. Opus still reviews and lands it. Review means Opus has read
-  the diff, run the tests, and can state in one paragraph why it is correct. "Looks fine" is
-  not a review.
-- Asks Fable (via its report, or SendMessage if running concurrently) for strategy when a design
-  decision appears mid-task. It does not improvise architecture.
-- Owns test green-ness and the verification evidence that goes back up.
+## 2. Delegate, or do it directly
 
-### Sonnet (Drafter) — thinking work that is not core code
-Sonnet is **not** the default code author. It drafts code only when the piece is peripheral,
-low-risk, and fully specified by Opus or Fable; anything else is Opus's own job.
-- Peripheral code drafts: a plotting or data-munging script, a CLI wrapper, a fixture generator,
-  an example notebook. If the draft turns out to touch something on the critical list, or the
-  spec runs out, Sonnet stops and reports; Opus takes it over.
-- Low-risk test drafts from a precise spec: regression tests reproducing a given bug report,
-  additional cases for an existing parametrised suite. Core test design stays with Opus.
-- Multi-source internet investigation **with synthesis**: compare, reconcile, cite, flag
-  disagreement between sources.
-- Preliminary reports for Opus: literature surveys, "state of this module" write-ups, option
-  comparisons with a recommendation Opus can accept or reject.
-- Documentation drafts (README sections, docstrings for a whole module).
+A spawn costs a brief, a cold start in which the worker rebuilds context you already have, and
+a summary that drops detail on the way back. Delegate when the work is worth that.
 
-### Haiku (Runner) — tasks with a single right answer or a complete spec
-- File and directory exploration: "where is X defined", "list every caller", naming sweeps.
-- Raw data reading: parse a CSV/log/JSON, tabulate, compute simple aggregates, report the numbers.
-- Single-page or single-doc fetches: "read this URL/PDF and return the facts about Y".
-- Mechanical edits from a complete, unambiguous spec: rename across files, apply a formatter,
-  update a version string everywhere, generate boilerplate from a template.
-- Trivial test scaffolding: parametrised smoke tests whose expected values are given in the brief.
-- Existence and status checks: does the build pass, which tests fail, what does `gh pr status` say.
+Do it yourself when:
+- the target is known and it takes a handful of tool calls (read two files, run one command);
+- the edit is a few lines, not critical, and the context is already in your head;
+- the answer is already in the conversation.
 
-### The Opus / Sonnet dividing line
-Ask: *is this code someone will run, cite, or build on?* If yes, Opus writes it. Sonnet gets code
-only when it is peripheral (scripts, examples, fixtures, extra test cases) **and** the spec leaves
-no design decisions. Sonnet's main value is non-code thinking: investigations, syntheses, memos.
+Delegate when:
+- finding the answer means reading across many files, pages or a dataset;
+- there is code to write beyond a few lines, or any critical edit at all;
+- pieces are independent and can run in parallel;
+- you want a read that is not anchored on your own conclusion.
 
-### The Sonnet / Haiku dividing line
-Ask: *could two careful people disagree about the output?* If no, Haiku. If yes, Sonnet.
-Ask: *does the brief contain everything needed, or must the worker infer intent?* Complete spec,
-Haiku. Inference needed, Sonnet. When unsure, start with Haiku on a bounded probe; if it reports
-ambiguity, re-brief to Sonnet. A Haiku probe is cheap; a Sonnet task done by Haiku is rework.
+Critical edits have no floor. They are the Engineer's hands and then your read, however small,
+because the value is in the author and the reader being different.
 
-## 2. Escalation and review chain
+## 3. Route each piece
 
-```
-Haiku result  --> Sonnet (only if Haiku flagged ambiguity)  --> Opus review --> lands
-Sonnet draft  --> Opus review (always)                      --> lands
-Opus edit     --> Fable review if critical, else Opus self-verifies and reports
-Fable decision --> user
-```
+Ask these in order and stop at the first yes.
 
-Hard rules:
-1. **Nothing Sonnet or Haiku wrote reaches the repo without an Opus review report.**
-2. **Every critical edit is Opus's own hands and gets a Fable read.**
-3. **Opus never silently changes scope.** Scope questions go up to Fable with a recommendation.
-4. **Cheap tiers report facts and flag uncertainty; they do not decide.** A Runner that writes
-   "I assumed X" has produced a question, not a result.
-5. **Review is not re-doing.** Opus reviews a Sonnet draft by reading it, running it, and
-   checking it against the brief's acceptance criteria. If it needs rewriting, Opus rewrites it
-   and says so.
+1. **Is it a critical edit?** Engineer writes it, you read the diff. Critical means: numerical
+   kernels and algorithm or physics correctness, data integrity and file formats others depend
+   on, security or auth, public API and signatures, build, packaging and CI config, git
+   operations that change state, code or data behind a result that will be cited, and anything
+   you mark critical in the brief. Prose that will be cited, such as a survey, is not an edit
+   in this sense: a Drafter may draft it, and the gate is re-opening its sources (section 6).
+2. **Is it code someone will run, cite or build on?** Engineer writes it and verifies it.
+3. **Is it peripheral code or documentation with a complete spec, where reviewing the result is
+   clearly cheaper than writing it?** Drafter writes it (Runner if it is purely mechanical),
+   then the Engineer reviews and lands it. Typical cases: a plotting script over data already
+   extracted, a fixture generator, extra cases for an existing parametrised test, a regression test
+   reproducing a given bug report, a README section. Designing the core tests stays with the
+   Engineer. If the Engineer could do it in one command, such as a scripted rename, the review
+   costs more than the work and the Engineer just does it.
+4. **Is it non-code work that needs judgement?** Drafter. Comparing sources, reconciling
+   conflicts, an options memo with a recommendation, a "state of this module" write-up.
+5. **Does it have a single right answer?** Runner. Where is X defined, list every caller, parse
+   this log and tabulate, read this page and return the facts about Y, does the build pass.
 
-## 3. Briefing a lower tier
+For the Drafter and Runner split, ask whether two careful people could disagree about the
+output, and whether the worker must infer what you meant. Either one makes it Drafter work.
+When unsure, send a Runner on a bounded probe. If it reports ambiguity, re-brief to a Drafter.
+The probe is cheap. Drafter work done by a Runner is rework.
 
-Every spawn sets `model` explicitly and uses this shape (full template in `brief-template.md`):
+The 60/20/20 split in the rule is what this routing tends to produce, not a quota to hit.
 
-- **Goal** in one sentence, with the acceptance criterion stated as something checkable.
-- **Scope**: the files/dirs/URLs in play, and what is explicitly out of bounds.
-- **Already ruled out**: what the lead already knows so the worker does not re-derive it.
-- **Critical or not**: say which, so a Drafter knows when to stop and hand up.
-- **Return format**: numbers in a table, findings as a list, code as a diff plus the test command
-  that proves it, uncertainty as a separate "Open questions" section.
-- **Do not**: the two or three things that would waste the run (don't refactor, don't install,
-  don't touch tests, etc.).
+## 4. Write the brief
 
-A brief the lead cannot write clearly means the lead does not understand the task yet.
-Decompose further before spawning.
+The worker knows nothing you do not write down. `brief-template.md` has two sizes.
 
-## 4. Choosing the mechanism
+- **Probe** (a Runner lookup with one answer): the question, where to look, and what to return.
+  Two or three lines. Do not pad it.
+- **Full brief** (anything that writes, synthesises, or runs longer than a lookup): the goal
+  with an acceptance criterion the worker can check alone, scope in and out, what you already
+  know or have ruled out, whether it is critical, and the two or three things that would waste
+  the run.
 
-- **One or two independent pieces**: `Agent` calls, in the same message so they run in parallel,
-  each with `model` set.
-- **Many pieces or a pipeline** (review → verify, scan → summarise): the `Workflow` tool, only
-  when the user has opted into multi-agent orchestration. Otherwise fan out with `Agent`.
-- **Follow-ups to a worker that already has context**: `SendMessage`, not a fresh spawn.
-- **A fork** inherits the lead's context and model; use it only when the worker genuinely needs
-  the whole conversation. Otherwise a fresh agent with a tight brief is cheaper and less anchored.
-- **Reviewers get the code, not the lead's conclusion.** An anchored reviewer confirms; an
-  unanchored one finds.
+A reviewer gets the code and the acceptance criterion. It does not get your hypothesis or your
+opinion of the code. An anchored reviewer confirms, and an unanchored one finds.
 
-## 5. Worked examples
+If you cannot write the brief clearly, you do not understand the task yet. Decompose further
+before spawning.
 
-| Request | Decomposition |
+## 5. Run it
+
+- **Independent pieces go out in one message** so they run in parallel.
+- **One writer per file at a time.** Parallel writers in one repo need disjoint file sets named
+  in each brief's scope, or `isolation: "worktree"`. Readers can run in any number.
+- **Commits, merges and pushes are the Engineer's, one at a time**, and only when the brief
+  asks for them.
+- **A follow-up to a worker that already has the context is a `SendMessage`**, not a new spawn.
+- **A fork** inherits your whole conversation and your model. Use it only when the worker needs
+  that conversation. A fresh worker with a tight brief is cheaper and less anchored.
+- **Many pieces or a fixed pipeline** can use the `Workflow` tool, only when the user has asked
+  for multi-agent orchestration. Otherwise fan out with `Agent`.
+- While workers run, do the work that does not depend on them. Never state a result before the
+  worker's report has arrived.
+
+## 6. Gates: what must come back
+
+**Code from a Drafter or Runner** does not land until an Engineer has read the diff, run it,
+and written a paragraph on why it is correct. "Looks fine" is not a review. If it needs
+rewriting, the Engineer rewrites it and says so.
+
+**Code from the Engineer** comes back with the test command and its pasted output. If it is
+critical, you read the diff line by line before it counts.
+
+**Facts** from a Drafter or Runner come with a source for each one: file and line, URL, or
+page. Whoever uses a fact re-opens the source. Check all of them when they will be cited in a
+paper or report, and the ones a decision turns on otherwise. A summary of a number is not the
+number.
+
+**An assumption is a question.** A worker that wrote "I assumed X" has not finished. Answer it,
+or send the piece up a tier.
+
+**Your own review** of an Engineer's report on lower-tier work samples the riskiest items. Do
+not re-read everything, and do not skip it.
+
+Done, per tier:
+
+| Tier | Owes |
 |---|---|
-| "Add a loss model to the FE package" | Fable: define interface and acceptance tests. Opus: write the kernel, its unit tests and the integration (critical). Sonnet: draft the validation/plotting script against the reference paper from Opus's spec. Haiku: find every caller of the old loss function and extract reference numbers from the paper's tables. Opus: review Sonnet's script, land. Fable: read the kernel diff. |
-| "Why did the suite get slow?" | Haiku: run the suite with timing, tabulate top 20. Opus: profile the top 3, confirm the cause, fix it. Sonnet: only if a write-up of hypotheses for the user is wanted. Fable: decide whether the fix is worth the behaviour change. |
-| "Survey the literature on X" | Haiku ×N: one fetch per paper, facts only, in a fixed table. Sonnet: synthesise, reconcile conflicts, draft the survey. Fable: critical read, decide what the survey is for, rewrite the framing. Opus not needed. |
-| "Rename `foo` to `bar` across the repo" | Haiku: do it, run tests, report. Opus: review the diff, land. No Sonnet, no Fable beyond the brief. |
-| "Fix this bug in the mesher" | Opus: reproduce, fix, add the regression test, verify. Haiku: locate callers if needed. No Sonnet. Fable: read the diff if the mesher is on the critical list (it is). |
-| "Should we move to a monorepo?" | Haiku: inventory repos, sizes, cross-deps. Sonnet: options memo with trade-offs. Fable: decision. No code, so no Opus. |
+| Runner | The facts in the format asked, each with a source, a list of what it could not read or what looked inconsistent, and any open questions. |
+| Drafter | The draft, the command that exercises it with its output, its own list of weak points, and whether it stayed out of critical territory. |
+| Engineer | The change, the verification output pasted in full, one review paragraph per lower-tier artefact it accepted or rewrote, and any question it needs you to answer. |
+| Lead | A message to the user that stands alone: what was found, what changed, what was verified, what was not, what is next. |
 
-## 6. What "done" means at each tier
+## 7. When a return is wrong
 
-- **Haiku**: the requested facts, in the requested format, plus a one-line list of anything it
-  could not read or that looked inconsistent.
-- **Sonnet**: the draft, the command that exercises it, its own list of weak points, and the
-  explicit statement of whether it stayed out of critical territory.
-- **Opus**: the landed change, test output pasted not summarised, a review paragraph per
-  Sonnet/Haiku artefact it accepted or rewrote, and any strategy question it needs Fable to answer.
-- **Fable**: a user-facing message that stands alone: what was found, what changed, what was
-  verified, what was not, what is next.
+- **It missed the acceptance criterion.** First ask whether the brief caused it. If so, fix the
+  brief and `SendMessage` the same worker, which still has its context.
+- **It missed twice.** Move the piece up one tier. Do not send a third attempt to the same one.
+- **It reported ambiguity or stopped at critical territory.** That is a correct return. Answer
+  the question, or re-route the piece.
+- **It went out of scope.** Discard the out-of-scope part. If that part touched anything
+  critical, the Engineer redoes it from the original state.
+- **Two workers disagree on a fact.** Neither wins by default. Open the source.
+- **The Engineer hit a design decision.** It should have come back to you with a recommendation
+  and not improvised. Decide, then continue the same worker.
 
-## 7. Anti-patterns this skill exists to stop
+## 8. Worked examples
 
-- Fable reading forty files to answer a locating question. Spawn Haiku.
-- Opus "reviewing" by skimming and saying it looks fine. Run it, read the diff, write the paragraph.
-- Sonnet drafting a numerical kernel because nobody said it was critical. The brief must say.
-- Handing ordinary code to Sonnet "to save Opus tokens". Opus writes code; the saving is in
-  Haiku doing the reading and Sonnet doing the non-code thinking, not in cheaper authorship.
-- Haiku being asked to "investigate and recommend". Haiku reports; Sonnet recommends; Fable decides.
-- Spawning without `model`. The default inherits the parent model and silently spends Fable tokens on Runner work.
-- Handing a reviewer the lead's hypothesis. Give the code, ask for an independent read.
+| Request | Split |
+|---|---|
+| "Add a loss model to the FE package" | Lead: define the interface and the acceptance tests. Runner: find every caller of the old loss function, and extract reference numbers from the paper's tables with page numbers. Engineer: write the kernel, its unit tests and the integration (critical), re-opening the paper for the reference numbers. Drafter: validation and plotting script from the Engineer's spec, then Engineer review. Lead: read the kernel diff. |
+| "Why did the suite get slow?" | Runner: run the suite with timing, tabulate the top 20. Engineer: profile the top 3, confirm the cause, fix it. Lead: decide whether the fix is worth the behaviour change. No Drafter unless the user wants a write-up. |
+| "Survey the literature on X" | Runner per paper: facts only, in a fixed table, with page references. Drafter: synthesise, reconcile conflicts, draft the survey. Lead: re-open the sources behind the claims the survey rests on, set the framing. No Engineer. |
+| "Rename `foo` to `bar` across the repo" | Engineer: scripted rename, run tests, report. One worker, no review chain. |
+| "Fix this bug in the mesher" | Engineer: reproduce, fix, add the regression test, verify, spawning a Runner for callers if needed. Lead: read the diff if the mesher is on the critical list. |
+| "What does `load_mesh` return?" | Lead reads the function. No spawn. |
+| "Should we move to a monorepo?" | Runner: inventory repos, sizes, cross-dependencies. Drafter: options memo with trade-offs and a recommendation. Lead: decide. No Engineer. |
+
+## 9. Anti-patterns
+
+- The Lead reading forty files to answer a locating question. Spawn a Runner.
+- The Lead spawning a Runner to read one file it could have opened itself.
+- An Engineer "reviewing" by skimming. Run it, read the diff, write the paragraph.
+- A Drafter writing a numerical kernel because nobody said it was critical. The brief must say.
+- Handing ordinary code to a Drafter "to save Opus tokens". A draft that needs a full review
+  and a partial rewrite costs more than the Engineer writing it.
+- A Runner asked to "investigate and recommend". Runners report, Drafters recommend, the Lead
+  decides.
+- Citing a number a Runner extracted without opening the source.
+- A spawn with no tier: a non-`tier-*` agent type and no `model`.
+- Handing a reviewer your hypothesis. Give the code and ask for an independent read.
+- Two writers in the same files at once.
+- A third retry of the same brief on the same tier.
