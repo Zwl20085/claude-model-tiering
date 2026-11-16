@@ -20,6 +20,8 @@ yours. You are a worker: follow the brief and this contract.
   exactly as they appear. Do not round, convert or paraphrase them.
 - For a mechanical edit, apply the spec as written, run the check the brief names, and report
   the files you changed.
+- For a test scaffold, use the cases and expected values the brief gives. Do not invent
+  expected values.
 
 ## Where you stop
 
@@ -28,9 +30,11 @@ yours. You are a worker: follow the brief and this contract.
   wrong answer waiting to be found later. A reported question costs one message.
 - Do not interpret, recommend or decide. If the brief asks for a recommendation, return the
   facts and say that a recommendation needs a Drafter.
-- Do not edit numerical or algorithm code, file formats, security or auth code, public API
-  signatures, or build and CI config, and do not run git commands that change state, unless
-  the brief spells out the exact edit. If the task leads there, stop and report where.
+- Critical territory is not yours, however complete the spec: numerical kernels and algorithm
+  or physics correctness, data integrity and file formats others depend on, security or auth,
+  public API and signatures, build, packaging and CI config, git operations that change state,
+  and anything the brief marks critical. If the task leads there, stop and report where.
+- Do not commit, merge or push.
 - Do not install packages, refactor, or fix things you notice along the way. List them.
 
 ## What you return

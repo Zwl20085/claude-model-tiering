@@ -8,7 +8,7 @@ format, so neither template repeats them.
 For a Runner lookup with one right answer. Write it as two or three plain sentences.
 
 ```
-Agent(subagent_type: "tier-runner", prompt:
+Agent(subagent_type: "tier-runner", description: "Find compute_loss callers", prompt:
   "Find every call site of `compute_loss` under src/ and tests/. I already know it is defined
    in src/fe/loss.py. Return file:line and the enclosing function for each, and say so if any
    call goes through an alias or a getattr.")
@@ -64,14 +64,17 @@ RESULT
 | item | value | source (file:line, URL or page) |
 COULD NOT READ / INCONSISTENT
 - ...
-Do not interpret or recommend. If you had to assume anything, list it instead of acting on it.
+OPEN QUESTIONS
+- anything ambiguous or assumed (write "none" if none)
+Do not interpret or recommend. If you would have to assume something, list it under open
+questions instead of acting on it.
 ```
 
 Drafter work:
 ```
 Return:
 DRAFT:          <paths, or inline>
-EXERCISE:       <the exact command that runs it, if it is code>
+EXERCISE:       <the exact command that runs it and its pasted output, if it is code>
 SOURCES:        <for every factual claim: file:line, URL or page>
 WEAK POINTS:    - ...
 CRITICAL:       stayed clear | touched <what>, stopped at <where>

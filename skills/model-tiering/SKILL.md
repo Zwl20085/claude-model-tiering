@@ -5,7 +5,7 @@ description: How to split a task across four model tiers in Claude Code - the se
 
 # Model tiering: the method
 
-The always-on rule (`rules/model-tiering.md`) holds the tier table and the hard rules, and it is
+The always-on Model Tiering rule holds the tier table and the hard rules, and it is normally
 already in your context. This skill is how to apply them. You are reading it as the Lead: you
 plan the split, write the briefs, check what comes back, and write the final message.
 
@@ -16,11 +16,11 @@ doing the reading and Sonnet doing the non-code thinking, not from cheaper autho
 
 ## 1. How tiers are spawned
 
-| Tier | `subagent_type` | Model | Can spawn |
-|---|---|---|---|
-| Engineer | `tier-engineer` | Opus | `tier-drafter`, `tier-runner` |
-| Drafter | `tier-drafter` | Sonnet | nothing |
-| Runner | `tier-runner` | Haiku | nothing |
+| Tier | `subagent_type` | Can spawn |
+|---|---|---|
+| Engineer | `tier-engineer` | `tier-drafter`, `tier-runner` |
+| Drafter | `tier-drafter` | nothing |
+| Runner | `tier-runner` | nothing |
 
 Each definition pins its model and carries the tier's contract and return format, so a brief
 does not need to repeat them. Do not pass `model` on a `tier-*` spawn: the call's `model`
@@ -65,14 +65,15 @@ Ask these in order and stop at the first yes.
 1. **Is it a critical edit?** Engineer writes it, you read the diff. Critical means: numerical
    kernels and algorithm or physics correctness, data integrity and file formats others depend
    on, security or auth, public API and signatures, build, packaging and CI config, git
-   operations, anything that will be cited in a paper or report, and anything you mark critical
+   operations that change state, anything that will be cited in a paper or report, and anything you mark critical
    in the brief.
 2. **Is it code someone will run, cite or build on?** Engineer writes it and verifies it.
 3. **Is it peripheral code or documentation with a complete spec, where reviewing the result is
    clearly cheaper than writing it?** Drafter writes it (Runner if it is purely mechanical),
    then the Engineer reviews and lands it. Typical cases: a plotting script over data already
-   extracted, a fixture generator, extra cases for an existing parametrised test, a README
-   section. If the Engineer could do it in one command, such as a scripted rename, the review
+   extracted, a fixture generator, extra cases for an existing parametrised test, a regression test
+   reproducing a given bug report, a README section. Designing the core tests stays with the
+   Engineer. If the Engineer could do it in one command, such as a scripted rename, the review
    costs more than the work and the Engineer just does it.
 4. **Is it non-code work that needs judgement?** Drafter. Comparing sources, reconciling
    conflicts, an options memo with a recommendation, a "state of this module" write-up.
@@ -142,8 +143,8 @@ Done, per tier:
 
 | Tier | Owes |
 |---|---|
-| Runner | The facts in the format asked, each with a source, and a list of what it could not read or what looked inconsistent. |
-| Drafter | The draft, the command that exercises it, its own list of weak points, and whether it stayed out of critical territory. |
+| Runner | The facts in the format asked, each with a source, a list of what it could not read or what looked inconsistent, and any open questions. |
+| Drafter | The draft, the command that exercises it with its output, its own list of weak points, and whether it stayed out of critical territory. |
 | Engineer | The change, the verification output pasted in full, one review paragraph per lower-tier artefact it accepted or rewrote, and any question it needs you to answer. |
 | Lead | A message to the user that stands alone: what was found, what changed, what was verified, what was not, what is next. |
 
